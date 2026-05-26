@@ -1,5 +1,6 @@
 package com.algaworks.algashop.billing.domain.model.invoice;
 
+import com.algaworks.algashop.billing.domain.model.DomainException;
 import com.algaworks.algashop.billing.domain.model.IdGenerator;
 import lombok.*;
 
@@ -70,19 +71,50 @@ public class Invoice {
 		return Collections.unmodifiableSet(items);
 	}
 
-	public void markAsPaid() {
 
+	public boolean isCanceled() {
+		return InvoiceStatus.CANCELED.equals(status);
 	}
 
-	public void cancel() {
+	public boolean isUnpaid() {
+		return InvoiceStatus.UNPAID.equals(status);
+	}
 
+	public boolean isPaid() {
+		return InvoiceStatus.PAID.equals(status);
+	}
+
+	public void markAsPaid() {
+		if (!isUnpaid()) {
+			throw new DomainException(String.format("Invoice %s with status %s cannot be marked as paid",
+					getId(), getStatus().toString().toLowerCase()));
+		}
+		setPaidAt(OffsetDateTime.now());
+		setStatus(InvoiceStatus.PAID);
+	}
+
+	public void cancel(String cancelReason) {
+		if (isCanceled()) {
+			throw new DomainException(String.format("Invoice %s is already canceled", getId()));
+		}
+		setCancelReason(cancelReason);
+		setCanceledAt(OffsetDateTime.now());
+		setStatus(InvoiceStatus.CANCELED);
 	}
 
 	public void assignPaymentGatewayCode(String code) {
-
+		if (!isUnpaid()) {
+			throw new DomainException(String.format("Invoice %s with status %s cannot be edited",
+					getId(), getStatus().toString().toLowerCase()));
+		}
+		getPaymentSettings().assignGatewayCode(code);
 	}
 
 	public void changePaymentSettings(PaymentMethod method, UUID creditCardId) {
+		if (!isUnpaid()) {
+			throw new DomainException(String.format("Invoice %s with status %s cannot be edited",
+					getId(), getStatus().toString().toLowerCase()));
+		}
 		PaymentSettings newPaymentSettings = PaymentSettings.brandNew(method, creditCardId);
 		setPaymentSettings(newPaymentSettings);
 	}
